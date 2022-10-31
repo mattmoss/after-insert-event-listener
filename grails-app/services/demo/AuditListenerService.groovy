@@ -13,18 +13,26 @@ class AuditListenerService {
     AuditDataService auditDataService
 
     @Subscriber
-    @Transactional
     void afterInsert(PostInsertEvent event) {
         if (event.entityObject instanceof Book) {
             log.info 'After book save...'
-            Audit audit = new Audit(event: 'Book inserted', book: (Book) event.entityObject)
-            if (!audit.save()) {
+
+            // As in the AuditListenerServiceSpec, any of the means of creation below will successfully persist
+            // an Audit object, and the means are ordered preferentially.
+            Audit audit = auditDataService.save('Book inserted', (Book) event.entityObject)        // 1
+            // Audit audit = createAudit('Book inserted', (Book) event.entityObject)                     // 2
+            // Audit audit = Audit.withTransaction {                                                     // 3
+            //     new Audit(event: 'Book inserted', book: (Book) event.entityObject).save()
+            // }
+             if (!audit) {
                 log.error 'Audit failed to save'
-            } else {
-                log.info 'Audit event saved'
-            }
-//            auditDataService.save('Book inserted', (Book) event.entityObject)
+             }
         }
+    }
+
+    @Transactional
+    Audit createAudit(String event, Book book) {
+        new Audit(event: event, book: book).save()
     }
 
     Long bookId(AbstractPersistenceEvent event) {
